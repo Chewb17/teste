@@ -10,8 +10,9 @@ function Sales() {
     product_line: '',
     value: '',
     discount_percent: '',
-    payment_term: '', // Manter como string vazia ou um valor padrão numérico se preferir
-    buyer: '', // <-- novo campo
+    payment_term: '',
+    buyer: '',
+    sale_date: '', // Novo campo para a data da venda
   });
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
@@ -22,16 +23,15 @@ function Sales() {
   const fetchSales = useCallback(async () => {
     const token = localStorage.getItem('token');
     try {
-      const res = await axios.get(`${API_BASE_URL}/api/sales/`, { // <--- USANDO VARIÁVEL DE AMBIENTE
+      const res = await axios.get(`${API_BASE_URL}/api/sales/`, {
         headers: { Authorization: `Token ${token}` },
       });
 
       console.log('Dados recebidos do backend no GET /api/sales/:', res.data);
 
-      // Atualiza as vendas e calcula as datas de pagamento se não existirem
       const updatedSales = res.data.map((sale) => ({
         ...sale,
-        payment_dates: sale.payment_dates || calculatePaymentDates(sale.value, sale.payment_term, sale.product_line, sale.discount_percent),
+        payment_dates: sale.payment_dates || calculatePaymentDates(sale.value, sale.payment_term, sale.product_line, sale.discount_percent, sale.sale_date),
       }));
 
       setSales(updatedSales);
@@ -42,41 +42,43 @@ function Sales() {
   }, []);
 
   // Função para calcular as datas de pagamento
-  const calculatePaymentDates = (value, paymentTerm, productLine, discountPercent) => {
-    const numericPaymentTerm = Number(paymentTerm); // Garante que paymentTerm é um número
-    let installments = numericPaymentTerm > 0 ? numericPaymentTerm / 30 : 1; // Se à vista, considera 1 parcela
-    if (numericPaymentTerm === 7 || numericPaymentTerm === 14 || numericPaymentTerm === 28 || numericPaymentTerm === 56) {
-      installments = 1; // Prazos específicos que são pagamentos únicos
+  const calculatePaymentDates = (value, paymentTerm, productLine, discountPercent, saleDateString) => {
+    const numericPaymentTerm = Number(paymentTerm);
+    let installments = numericPaymentTerm > 0 ? Math.ceil(numericPaymentTerm / 30) : 1;
+    if ([0, 7, 14, 28, 56].includes(numericPaymentTerm)) {
+      installments = 1;
     }
-    const installmentValue = value / installments; // Valor de cada parcela
-    const commissionRate = calculateCommissionRate(productLine, discountPercent); // Calcula a taxa de comissão
+    const installmentValue = parseFloat(value) / installments;
+    const commissionRate = calculateCommissionRate(productLine, discountPercent);
     const paymentDates = [];
-    const today = new Date(); // Data atual
 
-    for (let i = 1; i <= installments; i++) {
-      const paymentDate = new Date(today); // Clona a data atual
-      // Define o dia do pagamento
-      if (numericPaymentTerm === 0) { // À vista
-        // Mantém a data atual ou adiciona um pequeno buffer se necessário, ex: D+1
-        // Para este exemplo, vamos considerar a data atual para "À vista"
+    const baseDate = saleDateString ? new Date(saleDateString + 'T00:00:00') : new Date();
+    if (!saleDateString) {
+      baseDate.setHours(0, 0, 0, 0);
+    }
+
+    for (let i = 0; i < installments; i++) {
+      const paymentDate = new Date(baseDate);
+
+      if (numericPaymentTerm === 0) {
       } else if (numericPaymentTerm === 7) {
-        paymentDate.setDate(today.getDate() + 7);
+        paymentDate.setDate(baseDate.getDate() + 7);
       } else if (numericPaymentTerm === 14) {
-        paymentDate.setDate(today.getDate() + 14);
+        paymentDate.setDate(baseDate.getDate() + 14);
       } else if (numericPaymentTerm === 28) {
-        paymentDate.setDate(today.getDate() + 28);
+        paymentDate.setDate(baseDate.getDate() + 28);
       } else if (numericPaymentTerm === 56) {
-        paymentDate.setDate(today.getDate() + 56);
-      } else { // Para 30, 60, 90, 120 dias (lógica de parcelas)
-        paymentDate.setDate(today.getDate() + i * 30);
+        paymentDate.setDate(baseDate.getDate() + 56);
+      } else {
+        paymentDate.setDate(baseDate.getDate() + (i + 1) * 30);
       }
 
       paymentDates.push({
-        month: numericPaymentTerm === 0 ? 0 : (numericPaymentTerm > 0 && numericPaymentTerm < 30 ? numericPaymentTerm : i * 30), // Ajusta o "mês" para prazos menores que 30
+        month: numericPaymentTerm === 0 ? 0 : ([7, 14, 28, 56].includes(numericPaymentTerm) ? numericPaymentTerm : (i + 1) * 30),
         value: installmentValue,
-        commission: installmentValue * commissionRate, // Calcula a comissão
-        paymentDate: paymentDate.toLocaleDateString('pt-BR'), // Formata a data para exibição
-        billed: false, // <-- novo campo
+        commission: installmentValue * commissionRate,
+        paymentDate: paymentDate.toLocaleDateString('pt-BR'),
+        billed: false,
       });
     }
 
@@ -85,54 +87,58 @@ function Sales() {
 
   // Função para calcular a taxa de comissão
   const calculateCommissionRate = (productLine, discountPercent) => {
-    const discount = Number(discountPercent); // <-- converte para número
+    const discount = Number(discountPercent);
     if (productLine === 'racoes') {
       if (discount === 0) {
-        return 0.03; // 3% para tabela cheia
+        return 0.03;
       } else if (discount > 0 && discount <= 10) {
-        return 0.02; // 2% para desconto de 0,01% a 10%
+        return 0.02;
       }
     } else {
       if (discount === 0) {
-        return 0.10; // 10% para tabela cheia
+        return 0.10;
       } else if (discount > 0 && discount <= 2) {
-        return 0.09; // 9% para desconto de 0,01% a 2%
+        return 0.09;
       } else if (discount > 2 && discount <= 4) {
-        return 0.08; // 8% para desconto de 2,01% a 4%
+        return 0.08;
       } else if (discount > 4 && discount <= 6) {
-        return 0.07; // 7% para desconto de 4,01% a 6%
+        return 0.07;
       } else if (discount > 6 && discount <= 8) {
-        return 0.06; // 6% para desconto de 6,01% a 8%
+        return 0.06;
       } else if (discount > 8 && discount <= 10) {
-        return 0.05; // 5% para desconto de 8,01% a 10%
+        return 0.05;
       } else if (discount > 10 && discount <= 12) {
-        return 0.04; // 4% para desconto de 10,01% a 12%
+        return 0.04;
       } else if (discount > 12 && discount <= 14) {
-        return 0.03; // 3% para desconto de 12,01% a 14%
+        return 0.03;
       } else if (discount > 14) {
-        return 0.02; // 2% para descontos acima de 14%
+        return 0.02;
       }
     }
-    return 0; // Caso não se aplique nenhuma regra
+    return 0;
   };
 
   // Função para adicionar uma nova venda
   const addSale = async (e) => {
     e.preventDefault();
     const token = localStorage.getItem('token');
+
+    const saleDateToUse = newSale.sale_date || new Date().toISOString().split('T')[0];
+
     try {
       const payment_dates = calculatePaymentDates(
         newSale.value,
         newSale.payment_term,
         newSale.product_line,
-        newSale.discount_percent
+        newSale.discount_percent,
+        saleDateToUse
       );
 
-      console.log('Dados enviados ao backend no POST /api/sales/:', { ...newSale, payment_dates });
+      console.log('Dados enviados ao backend no POST /api/sales/:', { ...newSale, sale_date: saleDateToUse, payment_dates });
 
       const res = await axios.post(
-        `${API_BASE_URL}/api/sales/`, // <--- USANDO VARIÁVEL DE AMBIENTE
-        { ...newSale, payment_dates },
+        `${API_BASE_URL}/api/sales/`,
+        { ...newSale, sale_date: saleDateToUse, payment_dates },
         {
           headers: { Authorization: `Token ${token}` },
         }
@@ -141,7 +147,7 @@ function Sales() {
       console.log('Resposta do backend após adicionar venda:', res.data);
 
       setSales([...sales, res.data]);
-      setNewSale({ product_line: '', value: '', discount_percent: '', payment_term: '', buyer: '' });
+      setNewSale({ product_line: '', value: '', discount_percent: '', payment_term: '', buyer: '', sale_date: '' });
       alert('Venda adicionada com sucesso!');
     } catch (error) {
       console.error('Erro ao adicionar venda:', error.response?.data || error.message);
@@ -154,7 +160,7 @@ function Sales() {
     if (!window.confirm('Deseja realmente apagar esta venda?')) return;
     const token = localStorage.getItem('token');
     try {
-      await axios.delete(`${API_BASE_URL}/api/sales/${id}/`, { // <--- USANDO VARIÁVEL DE AMBIENTE
+      await axios.delete(`${API_BASE_URL}/api/sales/${id}/`, {
         headers: { Authorization: `Token ${token}` },
       });
       setSales(sales.filter((sale) => sale.id !== id));
@@ -204,14 +210,13 @@ function Sales() {
 
     const token = localStorage.getItem('token');
     try {
-      await axios.patch( // ou PUT, dependendo da sua API
-        `${API_BASE_URL}/api/sales/${saleId}/`, // <--- USANDO VARIÁVEL DE AMBIENTE
-        { payment_dates: updatedSale.payment_dates }, // Envie apenas o que mudou ou o objeto completo
+      await axios.patch(
+        `${API_BASE_URL}/api/sales/${saleId}/`,
+        { payment_dates: updatedSale.payment_dates },
         {
           headers: { Authorization: `Token ${token}` },
         }
       );
-      // Atualiza o estado local após sucesso
       setSales(sales.map(s => s.id === saleId ? updatedSale : s));
     } catch (error) {
       console.error('Erro ao atualizar status de faturamento:', error.response?.data || error.message);
@@ -235,7 +240,7 @@ function Sales() {
 
       {/* Seletor de mês para cálculo da comissão */}
       <div className="form-group">
-        <label>Selecione o mês de pagamento:</label>
+        <label>Selecione o mês de pagamento dos clientes:</label>
         <input
           type="month"
           value={selectedMonth}
@@ -256,6 +261,14 @@ function Sales() {
 
       {/* Formulário para adicionar vendas */}
       <form onSubmit={addSale} className="sales-form">
+        <div className="form-group">
+          <label>Data da Venda:</label>
+          <input
+            type="date"
+            value={newSale.sale_date}
+            onChange={(e) => setNewSale({ ...newSale, sale_date: e.target.value })}
+          />
+        </div>
         <div className="form-group">
           <label>Linha de Produto:</label>
           <select
@@ -298,7 +311,7 @@ function Sales() {
           <label>Prazo de Pagamento (dias):</label>
           <select
             value={newSale.payment_term}
-            onChange={(e) => setNewSale({ ...newSale, payment_term: e.target.value })} // e.target.value será string
+            onChange={(e) => setNewSale({ ...newSale, payment_term: e.target.value })}
             required
           >
             <option value="">Selecione</option>
@@ -311,7 +324,6 @@ function Sales() {
             <option value="60">60 dias</option>
             <option value="90">90 dias</option>
             <option value="120">120 dias</option>
-            {/* Removido 150 e 180 dias conforme solicitado implicitamente pelas novas opções */}
           </select>
         </div>
         <div className="form-group">
@@ -332,6 +344,7 @@ function Sales() {
       <ul className="sales-list">
         {sales.map((sale) => (
           <li key={sale.id} className="sales-item">
+            <p><strong>Data da Venda:</strong> {sale.sale_date}</p>
             <p><strong>Linha de Produto:</strong> {sale.product_line}</p>
             <p><strong>Valor:</strong> R$ {parseFloat(sale.value).toFixed(2)}</p>
             <p><strong>Desconto (%):</strong> {sale.discount_percent}%</p>
