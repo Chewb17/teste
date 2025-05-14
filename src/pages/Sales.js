@@ -10,7 +10,7 @@ function Sales() {
     product_line: '',
     value: '',
     discount_percent: '',
-    payment_term: '',
+    payment_term: '', // Manter como string vazia ou um valor padrão numérico se preferir
     buyer: '', // <-- novo campo
   });
   const [selectedMonth, setSelectedMonth] = useState(() => {
@@ -43,7 +43,11 @@ function Sales() {
 
   // Função para calcular as datas de pagamento
   const calculatePaymentDates = (value, paymentTerm, productLine, discountPercent) => {
-    const installments = paymentTerm / 30; // Número de parcelas
+    const numericPaymentTerm = Number(paymentTerm); // Garante que paymentTerm é um número
+    let installments = numericPaymentTerm > 0 ? numericPaymentTerm / 30 : 1; // Se à vista, considera 1 parcela
+    if (numericPaymentTerm === 7 || numericPaymentTerm === 14 || numericPaymentTerm === 28 || numericPaymentTerm === 56) {
+      installments = 1; // Prazos específicos que são pagamentos únicos
+    }
     const installmentValue = value / installments; // Valor de cada parcela
     const commissionRate = calculateCommissionRate(productLine, discountPercent); // Calcula a taxa de comissão
     const paymentDates = [];
@@ -51,10 +55,24 @@ function Sales() {
 
     for (let i = 1; i <= installments; i++) {
       const paymentDate = new Date(today); // Clona a data atual
-      paymentDate.setDate(today.getDate() + i * 30); // Adiciona 30 dias por parcela
+      // Define o dia do pagamento
+      if (numericPaymentTerm === 0) { // À vista
+        // Mantém a data atual ou adiciona um pequeno buffer se necessário, ex: D+1
+        // Para este exemplo, vamos considerar a data atual para "À vista"
+      } else if (numericPaymentTerm === 7) {
+        paymentDate.setDate(today.getDate() + 7);
+      } else if (numericPaymentTerm === 14) {
+        paymentDate.setDate(today.getDate() + 14);
+      } else if (numericPaymentTerm === 28) {
+        paymentDate.setDate(today.getDate() + 28);
+      } else if (numericPaymentTerm === 56) {
+        paymentDate.setDate(today.getDate() + 56);
+      } else { // Para 30, 60, 90, 120 dias (lógica de parcelas)
+        paymentDate.setDate(today.getDate() + i * 30);
+      }
 
       paymentDates.push({
-        month: i * 30,
+        month: numericPaymentTerm === 0 ? 0 : (numericPaymentTerm > 0 && numericPaymentTerm < 30 ? numericPaymentTerm : i * 30), // Ajusta o "mês" para prazos menores que 30
         value: installmentValue,
         commission: installmentValue * commissionRate, // Calcula a comissão
         paymentDate: paymentDate.toLocaleDateString('pt-BR'), // Formata a data para exibição
@@ -280,16 +298,20 @@ function Sales() {
           <label>Prazo de Pagamento (dias):</label>
           <select
             value={newSale.payment_term}
-            onChange={(e) => setNewSale({ ...newSale, payment_term: Number(e.target.value) })}
+            onChange={(e) => setNewSale({ ...newSale, payment_term: e.target.value })} // e.target.value será string
             required
           >
             <option value="">Selecione</option>
+            <option value="0">À vista</option>
+            <option value="7">7 dias</option>
+            <option value="14">14 dias</option>
+            <option value="28">28 dias</option>
             <option value="30">30 dias</option>
+            <option value="56">56 dias</option>
             <option value="60">60 dias</option>
             <option value="90">90 dias</option>
             <option value="120">120 dias</option>
-            <option value="150">150 dias</option>
-            <option value="180">180 dias</option>
+            {/* Removido 150 e 180 dias conforme solicitado implicitamente pelas novas opções */}
           </select>
         </div>
         <div className="form-group">
