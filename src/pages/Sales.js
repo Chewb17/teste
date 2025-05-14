@@ -76,12 +76,12 @@ function Sales() {
   // Função para calcular as datas de pagamento
   const calculatePaymentDates = (value, paymentTerm, productLine, discountPercent, saleDateString) => {
     const numericPaymentTerm = Number(paymentTerm);
-    let installments = numericPaymentTerm > 0 ? Math.ceil(numericPaymentTerm / 30) : 1;
+    let installments = numericPaymentTerm > 0 ? Math.ceil(numericPaymentTerm / 30) : 1; // Correção: dividido por 30
     if ([0, 7, 14, 28, 56].includes(numericPaymentTerm)) {
       installments = 1;
     }
-    const installmentValue = parseFloat(value) / installments;
-    const commissionRate = calculateCommissionRate(productLine, discountPercent);
+    const installmentValue = parseFloat(value) / installments; // Correção: dividido por installments
+    const commissionRate = calculateCommissionRate(productLine, discountPercent); // Usará a função atualizada abaixo
     const paymentDates = [];
 
     const baseDate = saleDateString ? new Date(saleDateString + 'T00:00:00') : new Date();
@@ -93,6 +93,7 @@ function Sales() {
       const paymentDate = new Date(baseDate);
 
       if (numericPaymentTerm === 0) {
+        // Data da venda já é a data de pagamento
       } else if (numericPaymentTerm === 7) {
         paymentDate.setDate(baseDate.getDate() + 7);
       } else if (numericPaymentTerm === 14) {
@@ -102,6 +103,7 @@ function Sales() {
       } else if (numericPaymentTerm === 56) {
         paymentDate.setDate(baseDate.getDate() + 56);
       } else {
+        // Para prazos como 30, 60, 90, etc.
         paymentDate.setDate(baseDate.getDate() + (i + 1) * 30);
       }
 
@@ -116,21 +118,37 @@ function Sales() {
     return paymentDates;
   };
 
+  // ATUALIZADA: Função para calcular a taxa de comissão conforme o arquivo antigo
   const calculateCommissionRate = (productLine, discountPercent) => {
-    const discount = Number(discountPercent);
-    if (productLine === 'racoes') {
-      if (discount === 0) return 0.03;
-      if (discount > 0 && discount <= 10) return 0.02;
-    } else if (productLine === 'pet') {
-      if (discount === 0) return 0.10;
-      if (discount > 0 && discount <= 2) return 0.09;
-      if (discount > 2 && discount <= 4) return 0.08;
-    } else {
-      if (discount === 0) return 0.10;
-      if (discount > 0 && discount <= 2) return 0.09;
-      if (discount > 2 && discount <= 4) return 0.08;
+    const discount = Number(discountPercent); // converte para número
+    if (productLine === 'racoes') { // 'racoes' refere-se a 'Rações Vaccinar'
+      if (discount === 0) {
+        return 0.03; // 3% para tabela cheia
+      } else if (discount > 0 && discount <= 10) {
+        return 0.02; // 2% para desconto de 0,01% a 10%
+      }
+    } else { // Para todas as outras linhas de produto (aditivo, aqua, aves, pet, ruminantes, suinos, revenda)
+      if (discount === 0) {
+        return 0.10; // 10% para tabela cheia
+      } else if (discount > 0 && discount <= 2) {
+        return 0.09; // 9% para desconto de 0,01% a 2%
+      } else if (discount > 2 && discount <= 4) {
+        return 0.08; // 8% para desconto de 2,01% a 4%
+      } else if (discount > 4 && discount <= 6) {
+        return 0.07; // 7% para desconto de 4,01% a 6%
+      } else if (discount > 6 && discount <= 8) {
+        return 0.06; // 6% para desconto de 6,01% a 8%
+      } else if (discount > 8 && discount <= 10) {
+        return 0.05; // 5% para desconto de 8,01% a 10%
+      } else if (discount > 10 && discount <= 12) {
+        return 0.04; // 4% para desconto de 10,01% a 12%
+      } else if (discount > 12 && discount <= 14) {
+        return 0.03; // 3% para desconto de 12,01% a 14%
+      } else if (discount > 14) {
+        return 0.02; // 2% para descontos acima de 14%
+      }
     }
-    return 0;
+    return 0; // Caso não se aplique nenhuma regra
   };
 
   const addSale = async (e) => {
@@ -273,11 +291,15 @@ function Sales() {
               required
             >
               <option value="">Selecione</option>
+              {/* ATUALIZADO: Opções de Linha de Produto conforme o arquivo antigo */}
+              <option value="aditivo">Aditivo</option>
+              <option value="aqua">Aqua</option>
+              <option value="aves">Aves</option>
               <option value="pet">Pet</option>
-              <option value="racoes">Rações</option>
-              <option value="medicamentos">Medicamentos</option>
-              <option value="vacinas">Vacinas</option>
-              <option value="geral">Geral</option>
+              <option value="ruminantes">Ruminantes</option>
+              <option value="suinos">Suínos</option>
+              <option value="revenda">Revenda</option>
+              <option value="racoes">Rações Vaccinar</option>
             </select>
           </div>
         </div>
