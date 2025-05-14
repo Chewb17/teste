@@ -1,7 +1,7 @@
 /* Sales.css */
 .sales-container {
-    max-width: 800px;
-    margin: 0 auto;
+    max-width: 1200px; /* Limita a largura máxima em telas grandes */
+    margin: 0 auto; /* Centraliza o container */
     padding: 20px;
     font-family: Arial, sans-serif;
     background-color: #f9f9f9;
@@ -16,14 +16,24 @@
 }
 
 .sales-form {
-    margin-bottom: 30px;
-    padding: 15px;
-    background-color: #fff;
+    margin-bottom: 30px; /* Adiciona mais espaço abaixo do formulário */
+    padding: 20px;
+    background-color: #f9f9f9;
     border: 1px solid #ddd;
     border-radius: 8px;
 }
 
+.form-row {
+    display: flex;
+    flex-wrap: wrap; /* Permite que os itens quebrem para a próxima linha em telas menores */
+    gap: 15px; /* Espaço entre os grupos de formulário na mesma linha */
+    margin-bottom: 15px;
+}
+
 .form-group {
+    flex: 1 1 200px; /* Permite que cresçam, mas base de 200px, útil para responsividade */
+    display: flex;
+    flex-direction: column;
     margin-bottom: 15px;
 }
 
@@ -36,25 +46,55 @@
 .form-group input,
 .form-group select {
     width: 100%;
-    padding: 8px;
-    border: 1px solid #ddd;
+    padding: 10px;
+    border: 1px solid #ccc;
     border-radius: 4px;
+    box-sizing: border-box; /* Garante que padding não aumente o tamanho total */
+}
+
+.add-button,
+.delete-button,
+.toggle-billed-button {
+    padding: 10px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
 }
 
 .add-button {
     display: block;
     width: 100%;
-    padding: 10px;
     background-color: #28a745;
     color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
     font-size: 16px;
 }
 
 .add-button:hover {
     background-color: #218838;
+}
+
+.delete-button {
+    background-color: #dc3545;
+    color: white;
+    margin-left: 5px; /* Espaço se houver outros botões de ação */
+}
+
+.delete-button:hover {
+    background-color: darkred;
+}
+
+.toggle-billed-button {
+    background-color: #007bff;
+    color: white;
+    margin-left: 10px; /* Espaço entre o texto da parcela e o botão */
+    font-size: 12px; /* Botão menor para faturamento */
+    padding: 5px 8px;
+}
+
+.toggle-billed-button.billed-active {
+    background-color: #ffc107; /* Cor diferente quando faturado */
+    color: #333;
 }
 
 .sales-list {
@@ -86,21 +126,17 @@
     color: #555;
 }
 
-.delete-button {
-    background-color: red;
-    color: white;
-    border: none;
-    padding: 5px 10px;
-    border-radius: 3px;
-    cursor: pointer;
-}
-
-.delete-button:hover {
-    background-color: darkred;
+.filter-commission-container {
+    margin-bottom: 30px;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background-color: #f9f9f9;
 }
 
 .total-commission {
-    margin-bottom: 20px;
+    margin-top: 10px;
+    font-size: 1.1em;
     padding: 10px;
     background-color: #f8f9fa;
     border: 1px solid #ccc;
@@ -118,4 +154,96 @@
     font-size: 16px;
     font-weight: bold;
     color: #28a745;
+}
+
+.sales-table-container {
+    overflow-x: auto; /* Permite rolagem horizontal em telas pequenas */
+    margin-top: 20px; /* Espaço acima da tabela */
+}
+
+.sales-table {
+    width: 100%;
+    border-collapse: collapse; /* Remove espaços duplos entre bordas */
+    margin-bottom: 20px;
+    font-size: 14px; /* Tamanho de fonte base para a tabela */
+}
+
+.sales-table th,
+.sales-table td {
+    border: 1px solid #ddd; /* Adiciona bordas a todas as células */
+    padding: 12px 15px; /* Aumenta o padding dentro das células */
+    text-align: left; /* Alinha o texto à esquerda */
+    vertical-align: top; /* Alinha o conteúdo da célula ao topo */
+}
+
+.sales-table th {
+    background-color: #f2f2f2; /* Cor de fundo para o cabeçalho */
+    font-weight: bold;
+}
+
+.sales-table tr:nth-child(even) {
+    background-color: #f9f9f9; /* Cor de fundo para linhas pares (zebrado) */
+}
+
+.sales-table td ul {
+    list-style-type: none;
+    padding-left: 0;
+    margin: 0;
+}
+
+.sales-table td ul li {
+    padding: 5px 0; /* Espaçamento entre itens da lista de parcelas */
+    border-bottom: 1px dashed #eee; /* Linha sutil entre parcelas */
+}
+
+.sales-table td ul li:last-child {
+    border-bottom: none; /* Remove a borda da última parcela */
+}
+
+.sales-table td ul li.billed {
+    color: #28a745; /* Cor para parcelas faturadas */
+    font-weight: bold;
+}
+
+/* Media Queries para Responsividade */
+@media (max-width: 768px) {
+    .form-row {
+        flex-direction: column; /* Empilha os campos do formulário em telas menores */
+        gap: 0; /* Remove o gap quando empilhado, o margin-bottom do form-group assume */
+    }
+    .form-group {
+        margin-bottom: 15px; /* Adiciona espaço abaixo de cada campo quando empilhado */
+    }
+
+    .sales-table th,
+    .sales-table td {
+        padding: 8px 10px; /* Reduz o padding em telas menores */
+        font-size: 13px; /* Reduz a fonte em telas menores */
+    }
+
+    .sales-table td ul li {
+        display: flex; /* Para melhor alinhamento do botão de faturar */
+        flex-direction: column; /* Empilha o texto e o botão */
+        align-items: flex-start; /* Alinha à esquerda */
+    }
+
+    .toggle-billed-button {
+        margin-left: 0; /* Remove margem esquerda no mobile */
+        margin-top: 5px; /* Adiciona espaço acima do botão no mobile */
+    }
+}
+
+@media (max-width: 480px) {
+    .sales-table th,
+    .sales-table td {
+        font-size: 12px; /* Fonte ainda menor para telas muito pequenas */
+        padding: 6px 8px;
+    }
+    .add-button, .delete-button {
+        width: 100%; /* Botões ocupam largura total */
+        margin-top: 10px;
+    }
+    .delete-button {
+        margin-left: 0;
+    }
 }
