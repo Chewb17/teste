@@ -1,0 +1,100 @@
+.login-page-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 90vh; /* Ajustado para não colar no rodapé, se houver */
+  background-color: #f0f2f5; /* Um cinza claro suave */
+  padding: 20px;
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+    Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+.login-form-container {
+  background: #ffffff;
+  padding: 35px 45px; /* Aumentado o padding */
+  border-radius: 10px; /* Bordas mais arredondadas */
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.12); /* Sombra mais pronunciada */
+  width: 100%;
+  max-width: 420px; /* Um pouco mais largo */
+  text-align: center;
+}
+
+.login-form h2 {
+  margin-bottom: 30px; /* Mais espaço abaixo do título */
+  color: #333;
+  font-size: 26px; /* Título um pouco maior */
+  font-weight: 600; /* Deixa o título um pouco mais forte */
+}
+
+.login-form .form-group {
+  margin-bottom: 25px; /* Espaçamento entre os grupos de formulário */
+  text-align: left;
+}
+
+.login-form label {
+  display: block;
+  margin-bottom: 8px;
+  color: #495057; /* Cor de texto um pouco mais escura para labels */
+  font-weight: 500; /* Peso da fonte para labels */
+  font-size: 15px;
+}
+
+.login-form input[type="text"],
+.login-form input[type="password"] {
+  width: 100%;
+  padding: 14px 18px; /* Padding interno dos inputs */
+  border: 1px solid #ced4da; /* Borda sutil */
+  border-radius: 6px; /* Bordas arredondadas para inputs */
+  box-sizing: border-box;
+  font-size: 16px;
+  color: #495057;
+  transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.login-form input[type="text"]:focus,
+.login-form input[type="password"]:focus {
+  border-color: #007bff;
+  outline: 0;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25); /* Efeito de foco similar ao Bootstrap */
+}
+
+.login-button {
+  width: 100%;
+  padding: 14px 18px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 17px; /* Tamanho da fonte do botão */
+  font-weight: 600;
+  letter-spacing: 0.5px; /* Pequeno espaçamento entre letras */
+  transition: background-color 0.2s ease-in-out, transform 0.1s ease;
+  margin-top: 10px; /* Espaço acima do botão */
+}
+
+.login-button:hover {
+  background-color: #0056b3;
+}
+
+.login-button:active {
+  transform: translateY(1px); /* Efeito de clique */
+}
+
+/* Responsividade simples */
+@media (max-width: 480px) {
+  .login-form-container {
+    padding: 25px 30px; /* Menor padding em telas pequenas */
+    margin: 0 15px; /* Adiciona margem lateral em telas muito pequenas */
+  }
+  .login-form h2 {
+    font-size: 22px;
+  }
+  .login-form input[type="text"],
+  .login-form input[type="password"],
+  .login-button {
+    font-size: 15px;
+    padding: 12px 15px;
+  }
+}
