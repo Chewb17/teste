@@ -15,10 +15,24 @@ const formatDate = (dateString) => {
     return `${day}/${month}/${year}`;
   }
   try {
-    const date = new Date(dateString + 'T00:00:00'); // Adiciona T00:00:00 para tratar como local
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0'); // Mês é 0-indexado
-    const year = String(date.getFullYear()).slice(-2);
+    // Tenta criar a data mesmo se o formato não for YYYY-MM-DD inicialmente
+    // Adiciona T00:00:00 para evitar problemas de fuso horário que podem mudar o dia
+    const date = new Date(dateString + 'T00:00:00Z'); // Usar Z para UTC e evitar deslocamentos de fuso
+    if (isNaN(date.getTime())) { // Verifica se a data é válida
+        // Se a data original já estiver no formato DD/MM/YY ou similar, tenta usar diretamente
+        // Isso é um fallback, o ideal é que o backend sempre envie YYYY-MM-DD
+        const directParts = dateString.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+        if (directParts) {
+            const day = String(directParts[1]).padStart(2, '0');
+            const month = String(directParts[2]).padStart(2, '0');
+            const year = String(directParts[3]).length === 4 ? directParts[3].slice(-2) : directParts[3];
+            return `${day}/${month}/${year}`;
+        }
+        return 'Data Inválida';
+    }
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0'); // Mês é 0-indexado
+    const year = String(date.getUTCFullYear()).slice(-2);
     return `${day}/${month}/${year}`;
   } catch (e) {
     return 'Data Inválida';
@@ -33,7 +47,7 @@ function Sales() {
     discount_percent: '',
     payment_term: '',
     buyer: '',
-    sale_date: '', // Novo campo para a data da venda
+    sale_date: '',
   });
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
@@ -41,11 +55,11 @@ function Sales() {
   });
   const [totalCommissions, setTotalCommissions] = useState(0);
 
-  // Função para buscar vendas do backend
   const fetchSales = useCallback(async () => {
     const token = localStorage.getItem('token');
     if (!token) {
-      console.error("Token não encontrado, redirecionando para login.");
+      console.error("Token não encontrado.");
+      // Idealmente, redirecionar para a página de login ou mostrar uma mensagem mais clara.
       return;
     }
     try {
@@ -56,7 +70,8 @@ function Sales() {
       console.log('Dados recebidos do backend no GET /api/sales/:', res.data);
       const updatedSales = res.data.map((sale) => ({
         ...sale,
-        payment_dates: sale.payment_dates && sale.payment_dates.length > 0
+        // Garante que payment_dates seja sempre um array
+        payment_dates: Array.isArray(sale.payment_dates) && sale.payment_dates.length > 0
           ? sale.payment_dates
           : calculatePaymentDates(sale.value, sale.payment_term, sale.product_line, sale.discount_percent, sale.sale_date),
       }));
@@ -66,89 +81,92 @@ function Sales() {
       console.error('Erro ao buscar vendas:', error.response ? error.response.data : error.message);
       if (error.response && error.response.status === 401) {
         alert('Sessão expirada ou token inválido. Por favor, faça login novamente.');
-        localStorage.removeItem('token');
+        localStorage.removeItem('token'); // Limpar token inválido
+        // window.location.href = '/login'; // Exemplo de redirecionamento
       } else {
         alert('Erro ao carregar vendas. Tente novamente mais tarde.');
       }
     }
   }, []);
 
-  // Função para calcular as datas de pagamento
   const calculatePaymentDates = (value, paymentTerm, productLine, discountPercent, saleDateString) => {
     const numericPaymentTerm = Number(paymentTerm);
-    let installments = numericPaymentTerm > 0 ? Math.ceil(numericPaymentTerm / 30) : 1; // Correção: dividido por 30
-    if ([0, 7, 14, 28, 56].includes(numericPaymentTerm)) {
-      installments = 1;
+    let installments = 1; // Padrão para à vista ou prazos curtos
+
+    if (numericPaymentTerm >= 30) { // Apenas calcula múltiplas parcelas para prazos de 30 dias ou mais
+        installments = Math.ceil(numericPaymentTerm / 30);
     }
-    const installmentValue = parseFloat(value) / installments; // Correção: dividido por installments
-    const commissionRate = calculateCommissionRate(productLine, discountPercent); // Usará a função atualizada abaixo
+
+    const installmentValue = parseFloat(value) / installments;
+    const commissionRate = calculateCommissionRate(productLine, discountPercent);
     const paymentDates = [];
 
-    const baseDate = saleDateString ? new Date(saleDateString + 'T00:00:00') : new Date();
-    if (!saleDateString) {
-      baseDate.setHours(0, 0, 0, 0);
+    // Usa a data da venda como base, ou a data atual se não fornecida
+    const baseDate = saleDateString ? new Date(saleDateString + 'T00:00:00Z') : new Date();
+     if (!saleDateString) { // Se não houver data da venda, zera as horas para evitar problemas de fuso
+        baseDate.setUTCHours(0, 0, 0, 0);
     }
+
 
     for (let i = 0; i < installments; i++) {
       const paymentDate = new Date(baseDate);
 
-      if (numericPaymentTerm === 0) {
-        // Data da venda já é a data de pagamento
+      if (numericPaymentTerm === 0) { // À vista
+        // A data de pagamento é a própria data da venda (baseDate)
       } else if (numericPaymentTerm === 7) {
-        paymentDate.setDate(baseDate.getDate() + 7);
+        paymentDate.setUTCDate(baseDate.getUTCDate() + 7);
       } else if (numericPaymentTerm === 14) {
-        paymentDate.setDate(baseDate.getDate() + 14);
+        paymentDate.setUTCDate(baseDate.getUTCDate() + 14);
       } else if (numericPaymentTerm === 28) {
-        paymentDate.setDate(baseDate.getDate() + 28);
+        paymentDate.setUTCDate(baseDate.getUTCDate() + 28);
       } else if (numericPaymentTerm === 56) {
-        paymentDate.setDate(baseDate.getDate() + 56);
-      } else {
-        // Para prazos como 30, 60, 90, etc.
-        paymentDate.setDate(baseDate.getDate() + (i + 1) * 30);
+        paymentDate.setUTCDate(baseDate.getUTCDate() + 56);
+      } else { // Para prazos em múltiplos de 30 dias (30, 60, 90, etc.)
+        paymentDate.setUTCDate(baseDate.getUTCDate() + (i + 1) * 30);
       }
 
       paymentDates.push({
+        // 'month' aqui parece ser mais um identificador do prazo da parcela do que o mês do calendário
         month: numericPaymentTerm === 0 ? 0 : ([7, 14, 28, 56].includes(numericPaymentTerm) ? numericPaymentTerm : (i + 1) * 30),
         value: installmentValue,
         commission: installmentValue * commissionRate,
-        paymentDate: paymentDate.toLocaleDateString('pt-BR'),
-        billed: false,
+        paymentDate: paymentDate.toLocaleDateString('pt-BR', { timeZone: 'UTC' }),
+        billed: false, // Por padrão, novas parcelas não são faturadas
       });
     }
     return paymentDates;
   };
 
-  // ATUALIZADA: Função para calcular a taxa de comissão conforme o arquivo antigo
   const calculateCommissionRate = (productLine, discountPercent) => {
-    const discount = Number(discountPercent); // converte para número
-    if (productLine === 'racoes') { // 'racoes' refere-se a 'Rações Vaccinar'
+    const discount = Number(discountPercent);
+    if (productLine === 'racoes') {
       if (discount === 0) {
-        return 0.03; // 3% para tabela cheia
+        return 0.03;
       } else if (discount > 0 && discount <= 10) {
-        return 0.02; // 2% para desconto de 0,01% a 10%
+        return 0.02;
       }
-    } else { // Para todas as outras linhas de produto (aditivo, aqua, aves, pet, ruminantes, suinos, revenda)
+    } else {
       if (discount === 0) {
-        return 0.10; // 10% para tabela cheia
+        return 0.10;
       } else if (discount > 0 && discount <= 2) {
-        return 0.09; // 9% para desconto de 0,01% a 2%
+        return 0.09;
       } else if (discount > 2 && discount <= 4) {
-        return 0.08; // 8% para desconto de 2,01% a 4%
+        return 0.08;
       } else if (discount > 4 && discount <= 6) {
-        return 0.07; // 7% para desconto de 4,01% a 6%
+        return 0.07;
       } else if (discount > 6 && discount <= 8) {
-        return 0.06; // 6% para desconto de 6,01% a 8%
+        return 0.06;
       } else if (discount > 8 && discount <= 10) {
-        return 0.05; // 5% para desconto de 8,01% a 10%
+        return 0.05;
       } else if (discount > 10 && discount <= 12) {
-        return 0.04; // 4% para desconto de 10,01% a 12%
+        return 0.04;
       } else if (discount > 12 && discount <= 14) {
-        return 0.03; // 3% para desconto de 12,01% a 14%
+        return 0.03;
       } else if (discount > 14) {
-        return 0.02; // 2% para descontos acima de 14%
+        return 0.02;
       }
     }
-    return 0; // Caso não se aplique nenhuma regra
+    return 0;
   };
 
   const addSale = async (e) => {
@@ -169,7 +187,8 @@ function Sales() {
       alert("O valor da venda deve ser um número positivo.");
       return;
     }
-    if (newSale.discount_percent !== '' && (isNaN(parseFloat(newSale.discount_percent)) || parseFloat(newSale.discount_percent) < 0 || parseFloat(newSale.discount_percent) > 100)) {
+    const discountValue = newSale.discount_percent === '' ? 0 : parseFloat(newSale.discount_percent);
+    if (isNaN(discountValue) || discountValue < 0 || discountValue > 100) {
       alert("O percentual de desconto deve ser um número entre 0 e 100.");
       return;
     }
@@ -179,14 +198,14 @@ function Sales() {
         newSale.value,
         newSale.payment_term,
         newSale.product_line,
-        newSale.discount_percent,
+        discountValue, // Usar o valor já parseado
         saleDateToUse
       );
 
       const saleData = {
         ...newSale,
         value: parseFloat(newSale.value),
-        discount_percent: newSale.discount_percent === '' ? 0 : parseFloat(newSale.discount_percent),
+        discount_percent: discountValue,
         payment_term: parseInt(newSale.payment_term, 10),
         sale_date: saleDateToUse,
         payment_dates,
@@ -201,12 +220,13 @@ function Sales() {
       );
 
       console.log('Resposta do backend após adicionar venda:', res.data);
-      fetchSales();
+      fetchSales(); // Recarrega todas as vendas para refletir a nova e as calculadas no backend
       setNewSale({ product_line: '', value: '', discount_percent: '', payment_term: '', buyer: '', sale_date: '' });
       alert('Venda adicionada com sucesso!');
     } catch (error) {
       console.error('Erro ao adicionar venda:', error.response ? error.response.data : error.message);
-      alert(`Erro ao adicionar venda: ${error.response && error.response.data && typeof error.response.data === 'object' ? JSON.stringify(error.response.data) : (error.response ? error.response.data : error.message)}`);
+      const errorMessage = error.response?.data ? JSON.stringify(error.response.data) : error.message;
+      alert(`Erro ao adicionar venda: ${errorMessage}`);
     }
   };
 
@@ -217,7 +237,8 @@ function Sales() {
       await axios.delete(`${API_BASE_URL}/api/sales/${id}/`, {
         headers: { Authorization: `Token ${token}` },
       });
-      setSales(sales.filter((sale) => sale.id !== id));
+      // Atualiza o estado local removendo a venda deletada
+      setSales(prevSales => prevSales.filter((sale) => sale.id !== id));
       alert('Venda deletada com sucesso!');
     } catch (error) {
       console.error('Erro ao deletar venda:', error.response ? error.response.data : error.message);
@@ -228,16 +249,21 @@ function Sales() {
   const toggleBilled = async (saleId, paymentIndex) => {
     const token = localStorage.getItem('token');
     const saleToUpdate = sales.find(s => s.id === saleId);
-    if (!saleToUpdate) return;
+    if (!saleToUpdate || !Array.isArray(saleToUpdate.payment_dates) || paymentIndex < 0 || paymentIndex >= saleToUpdate.payment_dates.length) {
+        console.error('Venda ou índice de pagamento inválido para toggleBilled');
+        return;
+    }
 
     const paymentToUpdate = saleToUpdate.payment_dates[paymentIndex];
     const newBilledStatus = !paymentToUpdate.billed;
 
     try {
+      // A API espera 'sale_id', 'payment_index', 'billed'
       const response = await axios.post(`${API_BASE_URL}/api/sales/update-payment-status/`,
         { sale_id: saleId, payment_index: paymentIndex, billed: newBilledStatus },
         { headers: { Authorization: `Token ${token}` } }
       );
+      // O backend deve retornar a venda atualizada completa
       setSales(prevSales => prevSales.map(s => s.id === saleId ? response.data : s));
     } catch (error) {
       console.error('Erro ao atualizar status de faturamento:', error.response ? error.response.data : error.message);
@@ -249,19 +275,29 @@ function Sales() {
     fetchSales();
   }, [fetchSales]);
 
+  // useEffect para calcular a comissão total do mês selecionado APENAS de itens faturados
   useEffect(() => {
     const [year, month] = selectedMonth.split('-').map(Number);
     let currentTotalCommissions = 0;
     sales.forEach(sale => {
       if (Array.isArray(sale.payment_dates)) {
         sale.payment_dates.forEach(pd => {
-          const paymentDateParts = pd.paymentDate.split('/');
-          const paymentDay = parseInt(paymentDateParts[0], 10);
-          const paymentMonth = parseInt(paymentDateParts[1], 10);
-          const paymentYear = parseInt(paymentDateParts[2], 10);
+          // Verifica se pd.paymentDate é uma string válida antes de tentar split
+          if (pd.billed && typeof pd.paymentDate === 'string') { // <<<<<<< ALTERAÇÃO AQUI: Adicionado pd.billed
+            const paymentDateParts = pd.paymentDate.split('/');
+            if (paymentDateParts.length === 3) {
+              // const paymentDay = parseInt(paymentDateParts[0], 10); // Não usado no filtro de mês
+              const paymentMonth = parseInt(paymentDateParts[1], 10);
+              // O ano pode vir como 'YY' ou 'YYYY' dependendo da formatação, normalizar para número
+              let paymentYear = parseInt(paymentDateParts[2], 10);
+              if (paymentYear < 100) { // Assume que '24' é 2024, '99' é 1999
+                paymentYear += (paymentYear > 50 ? 1900 : 2000); // Ajuste simples para ano com 2 dígitos
+              }
 
-          if (paymentYear === year && paymentMonth === month) {
-            currentTotalCommissions += parseFloat(pd.commission) || 0;
+              if (paymentYear === year && paymentMonth === month) {
+                currentTotalCommissions += parseFloat(pd.commission) || 0;
+              }
+            }
           }
         });
       }
@@ -291,7 +327,6 @@ function Sales() {
               required
             >
               <option value="">Selecione</option>
-              {/* ATUALIZADO: Opções de Linha de Produto conforme o arquivo antigo */}
               <option value="aditivo">Aditivo</option>
               <option value="aqua">Aqua</option>
               <option value="aves">Aves</option>
@@ -368,7 +403,7 @@ function Sales() {
           />
         </div>
         <div className="total-commission">
-          <strong>Comissão Total para {selectedMonth}: R$ {totalCommissions.toFixed(2)}</strong>
+          <strong>Comissão Total Faturada para {selectedMonth}: R$ {totalCommissions.toFixed(2)}</strong>
         </div>
       </div>
 
@@ -400,7 +435,7 @@ function Sales() {
                   <ul>
                     {Array.isArray(sale.payment_dates) && sale.payment_dates.map((pd, index) => (
                       <li key={index} className={pd.billed ? 'billed' : ''}>
-                        {pd.paymentDate} - R$ {parseFloat(pd.value).toFixed(2)}
+                        {formatDate(pd.paymentDate)} - R$ {parseFloat(pd.value).toFixed(2)}
                         (Comissão: R$ {parseFloat(pd.commission).toFixed(2)})
                         <button onClick={() => toggleBilled(sale.id, index)} className={`toggle-billed-button ${pd.billed ? 'billed-active' : ''}`}>
                           {pd.billed ? 'Desfaturar' : 'Faturar'}
