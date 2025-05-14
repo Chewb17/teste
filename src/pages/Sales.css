@@ -260,6 +260,7 @@
     .filter-commission-container .total-commission {
         width: 100%; /* Garante largura total quando empilhado */
         min-width: unset; /* Reseta min-width */
+        box-sizing: border-box; /* Adicionado para consistência no cálculo da largura */
     }
     .sales-container h2 { font-size: 1.6rem; }
     .sales-container h3 { font-size: 1.3rem; }
@@ -282,6 +283,7 @@
         flex-basis: 100%; /* Garante uma coluna */
         min-width: 100%; /* Garante uma coluna */
         margin-bottom: 18px; /* Espaço consistente */
+        box-sizing: border-box; /* Adicionado para consistência, caso não herdado globalmente */
     }
 
     .sales-table th,
@@ -298,10 +300,12 @@
         margin-top: 8px;
         width: 100%; /* Botão de faturar ocupa largura total */
         padding: 8px 12px;
+        box-sizing: border-box; /* Adicionado */
     }
     .sales-table td .delete-button {
         width: 100%;
         margin-top: 8px;
+        box-sizing: border-box; /* Adicionado */
     }
     .sales-container h2 { font-size: 1.5rem; }
     .sales-container h3 { font-size: 1.2rem; }
@@ -322,6 +326,7 @@
     .form-group select {
         padding: 12px 14px; /* Padding para toque */
         font-size: 0.9rem;
+        box-sizing: border-box; /* Já estava no estilo base, mas reforça */
     }
     .add-button {
         padding: 12px 15px;
@@ -338,6 +343,7 @@
     .sales-table td .delete-button {
         font-size: 0.8rem;
         padding: 8px 10px;
+        box-sizing: border-box; /* Adicionado */
     }
     .total-commission strong { font-size: 0.9rem; }
     .total-commission span { font-size: 1.1rem; }
