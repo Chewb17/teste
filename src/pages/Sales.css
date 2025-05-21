@@ -147,6 +147,7 @@
     flex-wrap: wrap;
     gap: 20px;
     align-items: flex-end; /* Alinha itens na base */
+    /* box-sizing: border-box; // Removido daqui, aplicado nos filhos na media query */
 }
 
 .filter-commission-container .form-group {
@@ -258,9 +259,13 @@
     }
     .filter-commission-container .form-group,
     .filter-commission-container .total-commission {
-        width: 100%; /* Garante largura total quando empilhado */
-        min-width: unset; /* Reseta min-width */
-        box-sizing: border-box; /* Adicionado para consistência no cálculo da largura */
+        width: 100%; 
+        min-width: unset; 
+        box-sizing: border-box; 
+    }
+
+    .chart-wrapper {
+        max-width: 400px;
     }
     .sales-container h2 { font-size: 1.6rem; }
     .sales-container h3 { font-size: 1.3rem; }
@@ -307,6 +312,12 @@
         margin-top: 8px;
         box-sizing: border-box; /* Adicionado */
     }
+    .commission-chart-container {
+        padding: 20px;
+    }
+    .chart-wrapper {
+        max-width: 350px;
+    }
     .sales-container h2 { font-size: 1.5rem; }
     .sales-container h3 { font-size: 1.2rem; }
 }
@@ -348,6 +359,43 @@
     .total-commission strong { font-size: 0.9rem; }
     .total-commission span { font-size: 1.1rem; }
 
+    .commission-chart-container {
+        padding: 15px;
+    }
+    .chart-wrapper {
+        max-width: 100%; /* Gráfico ocupa a largura disponível */
+        /* max-height: 300px; */ /* Opcional: limitar altura em telas muito pequenas */
+    }
+    .commission-chart-container h3 {
+        font-size: 1.15rem;
+    }
+
     .sales-container h2 { font-size: 1.3rem; }
     .sales-container h3 { font-size: 1.1rem; }
+}
+
+/* Estilos para o container do gráfico de comissão */
+.commission-chart-container {
+    margin-top: 30px;
+    margin-bottom: 30px;
+    padding: 25px;
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.05);
+}
+
+.commission-chart-container h3 {
+    text-align: center;
+    margin-bottom: 20px;
+    font-size: 1.3rem;
+    color: #333;
+    border-bottom: none; /* Remove a borda do h3 geral se não quiser aqui */
+    padding-bottom: 0;
+}
+
+.chart-wrapper {
+    max-width: 450px; /* Limita a largura máxima do gráfico */
+    margin: 0 auto; /* Centraliza o gráfico */
+    height: auto; /* Permite que a altura seja responsiva */
 }
