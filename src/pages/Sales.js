@@ -1,6 +1,23 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import './Sales.css'; // Adicione um arquivo CSS para estilos personalizados
+import { Pie } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  ArcElement,
+  Tooltip,
+  Legend,
+  CategoryScale, // Necessário se estiver usando Chart.js v3+ com escalas, embora não diretamente para Pie
+  LinearScale    // Mesmo que acima
+} from 'chart.js';
+
+ChartJS.register(
+  ArcElement,
+  Tooltip,
+  Legend,
+  CategoryScale,
+  LinearScale
+);
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 
@@ -54,6 +71,7 @@ function Sales() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
   const [totalCommissions, setTotalCommissions] = useState(0);
+  const [commissionChartData, setCommissionChartData] = useState(null);
 
   const fetchSales = useCallback(async () => {
     const token = localStorage.getItem('token');
@@ -275,34 +293,66 @@ function Sales() {
     fetchSales();
   }, [fetchSales]);
 
-  // useEffect para calcular a comissão total do mês selecionado APENAS de itens faturados
   useEffect(() => {
-    const [year, month] = selectedMonth.split('-').map(Number);
-    let currentTotalCommissions = 0;
+    const [selectedYear, selectedMonthNum] = selectedMonth.split('-').map(Number);
+    let currentMonthCommission = 0;
+    let futureMonthsCommission = 0;
+
     sales.forEach(sale => {
       if (Array.isArray(sale.payment_dates)) {
         sale.payment_dates.forEach(pd => {
-          // Verifica se pd.paymentDate é uma string válida antes de tentar split
-          if (pd.billed && typeof pd.paymentDate === 'string') { // <<<<<<< ALTERAÇÃO AQUI: Adicionado pd.billed
+          if (typeof pd.paymentDate === 'string' && pd.commission) {
             const paymentDateParts = pd.paymentDate.split('/');
             if (paymentDateParts.length === 3) {
-              // const paymentDay = parseInt(paymentDateParts[0], 10); // Não usado no filtro de mês
+              const paymentDay = parseInt(paymentDateParts[0], 10);
               const paymentMonth = parseInt(paymentDateParts[1], 10);
-              // O ano pode vir como 'YY' ou 'YYYY' dependendo da formatação, normalizar para número
               let paymentYear = parseInt(paymentDateParts[2], 10);
-              if (paymentYear < 100) { // Assume que '24' é 2024, '99' é 1999
-                paymentYear += (paymentYear > 50 ? 1900 : 2000); // Ajuste simples para ano com 2 dígitos
+              if (paymentYear < 100) {
+                paymentYear += (paymentYear > 50 ? 1900 : 2000);
               }
 
-              if (paymentYear === year && paymentMonth === month) {
-                currentTotalCommissions += parseFloat(pd.commission) || 0;
+              const commissionValue = parseFloat(pd.commission) || 0;
+
+              // Calcula comissão faturada do mês selecionado
+              if (pd.billed && paymentYear === selectedYear && paymentMonth === selectedMonthNum) {
+                currentMonthCommission += commissionValue;
+              }
+
+              // Calcula comissão de meses futuros (após o mês selecionado)
+              // Considera todas as parcelas (faturadas ou não)
+              if (paymentYear > selectedYear || (paymentYear === selectedYear && paymentMonth > selectedMonthNum)) {
+                futureMonthsCommission += commissionValue;
               }
             }
           }
         });
       }
     });
-    setTotalCommissions(currentTotalCommissions);
+    setTotalCommissions(currentMonthCommission);
+
+    // Prepara dados para o gráfico de pizza
+    if (currentMonthCommission > 0 || futureMonthsCommission > 0) {
+      setCommissionChartData({
+        labels: ['Comissão Faturada do Mês', 'Comissão de Meses Futuros (A Receber)'],
+        datasets: [
+          {
+            label: 'Distribuição de Comissões',
+            data: [currentMonthCommission, futureMonthsCommission],
+            backgroundColor: [
+              'rgba(75, 192, 192, 0.7)', // Verde/Azul para comissão do mês
+              'rgba(255, 159, 64, 0.7)', // Laranja para comissão futura
+            ],
+            borderColor: [
+              'rgba(75, 192, 192, 1)',
+              'rgba(255, 159, 64, 1)',
+            ],
+            borderWidth: 1,
+          },
+        ],
+      });
+    } else {
+      setCommissionChartData(null); // Reseta o gráfico se não houver dados
+    }
   }, [sales, selectedMonth]);
 
   return (
@@ -395,7 +445,7 @@ function Sales() {
 
       <div className="filter-commission-container">
         <div className="form-group">
-          <label>Selecione o mês para ver a comissão total:</label>
+          <label>Selecione o mês para ver a comissão:</label>
           <input
             type="month"
             value={selectedMonth}
@@ -403,9 +453,20 @@ function Sales() {
           />
         </div>
         <div className="total-commission">
-          <strong>Comissão Total Faturada para {selectedMonth}: R$ {totalCommissions.toFixed(2)}</strong>
+          <strong>Comissão Total Faturada para {selectedMonth}:</strong>
+          <span>R$ {totalCommissions.toFixed(2)}</span>
         </div>
       </div>
+
+      {/* Seção do Gráfico */}
+      {commissionChartData && (
+        <div className="commission-chart-container">
+          <h3>Distribuição de Comissões</h3>
+          <div className="chart-wrapper">
+            <Pie data={commissionChartData} />
+          </div>
+        </div>
+      )}
 
       <h3>Vendas Registradas</h3>
       <div className="sales-table-container">
@@ -435,8 +496,10 @@ function Sales() {
                   <ul>
                     {Array.isArray(sale.payment_dates) && sale.payment_dates.map((pd, index) => (
                       <li key={index} className={pd.billed ? 'billed' : ''}>
-                        {formatDate(pd.paymentDate)} - R$ {parseFloat(pd.value).toFixed(2)}
-                        (Comissão: R$ {parseFloat(pd.commission).toFixed(2)})
+                        <span> {/* Envolver o texto */}
+                          {formatDate(pd.paymentDate)} - R$ {parseFloat(pd.value).toFixed(2)}
+                          (Comissão: R$ {parseFloat(pd.commission).toFixed(2)})
+                        </span>
                         <button onClick={() => toggleBilled(sale.id, index)} className={`toggle-billed-button ${pd.billed ? 'billed-active' : ''}`}>
                           {pd.billed ? 'Desfaturar' : 'Faturar'}
                         </button>
