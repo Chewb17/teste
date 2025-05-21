@@ -59,12 +59,12 @@ const formatDate = (dateString) => {
 function Sales() {
   const [sales, setSales] = useState([]);
   const [newSale, setNewSale] = useState({
-    // Campos gerais da venda
-    sale_date: '',
-    buyer: '',
+    product_line: '',
+    value: '',
+    discount_percent: '',
     payment_term: '',
-    // Itens da venda - inicia com um item vazio com um ID único temporário
-    items: [{ id: Date.now(), product_line: '', value: '', discount_percent: '' }]
+    buyer: '',
+    sale_date: '',
   });
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
@@ -187,33 +187,6 @@ function Sales() {
     return 0;
   };
 
-  const handleItemChange = (itemId, field, value) => {
-    setNewSale(prev => ({
-      ...prev,
-      items: prev.items.map(item =>
-        item.id === itemId ? { ...item, [field]: value } : item
-      )
-    }));
-  };
-
-  const addNewItem = () => {
-    setNewSale(prev => ({
-      ...prev,
-      items: [...prev.items, { id: Date.now(), product_line: '', value: '', discount_percent: '' }]
-    }));
-  };
-
-  const removeItem = (itemId) => {
-    if (newSale.items.length <= 1) {
-      alert("A venda deve ter pelo menos um item.");
-      return;
-    }
-    setNewSale(prev => ({
-      ...prev,
-      items: prev.items.filter(item => item.id !== itemId)
-    }));
-  };
-
   const addSale = async (e) => {
     e.preventDefault();
     const token = localStorage.getItem('token');
@@ -224,50 +197,36 @@ function Sales() {
 
     const saleDateToUse = newSale.sale_date || new Date().toISOString().split('T')[0];
 
-    // Validação dos campos gerais
-    if (!newSale.buyer || newSale.payment_term === '') {
-      alert("Por favor, preencha Comprador e Prazo de Pagamento.");
+    if (!newSale.product_line || !newSale.value || newSale.payment_term === '' || !newSale.buyer) {
+      alert("Por favor, preencha todos os campos obrigatórios.");
       return;
     }
-
-    // Validação dos itens
-    if (newSale.items.length === 0) {
-      alert("A venda deve conter pelo menos um item.");
+    if (isNaN(parseFloat(newSale.value)) || parseFloat(newSale.value) <= 0) {
+      alert("O valor da venda deve ser um número positivo.");
       return;
     }
-
-    for (const item of newSale.items) {
-      if (!item.product_line || !item.value) {
-        alert("Cada item deve ter Linha de Produto e Valor preenchidos.");
-        return;
-      }
-      if (isNaN(parseFloat(item.value)) || parseFloat(item.value) <= 0) {
-        alert(`O valor do item "${item.product_line || `Item ${newSale.items.indexOf(item) + 1}`}" deve ser um número positivo.`);
-        return;
-      }
-      const itemDiscountValue = item.discount_percent === '' ? 0 : parseFloat(item.discount_percent);
-      if (isNaN(itemDiscountValue) || itemDiscountValue < 0 || itemDiscountValue > 100) {
-        alert(`O desconto do item "${item.product_line || `Item ${newSale.items.indexOf(item) + 1}`}" deve ser um número entre 0 e 100.`);
-        return;
-      }
+    const discountValue = newSale.discount_percent === '' ? 0 : parseFloat(newSale.discount_percent);
+    if (isNaN(discountValue) || discountValue < 0 || discountValue > 100) {
+      alert("O percentual de desconto deve ser um número entre 0 e 100.");
+      return;
     }
 
     try {
-      // Prepara os itens para o backend, removendo o ID temporário do frontend
-      const itemsForBackend = newSale.items.map(item => ({
-        product_line: item.product_line,
-        value: parseFloat(item.value),
-        discount_percent: item.discount_percent === '' ? 0 : parseFloat(item.discount_percent),
-        // A comissão individual do item e o cálculo das parcelas serão feitos no backend
-      }));
+      const payment_dates = calculatePaymentDates(
+        newSale.value,
+        newSale.payment_term,
+        newSale.product_line,
+        discountValue, // Usar o valor já parseado
+        saleDateToUse
+      );
 
       const saleData = {
-        sale_date: saleDateToUse,
-        buyer: newSale.buyer,
+        ...newSale,
+        value: parseFloat(newSale.value),
+        discount_percent: discountValue,
         payment_term: parseInt(newSale.payment_term, 10),
-        items: itemsForBackend,
-        // O backend deverá calcular o valor total da venda, as payment_dates
-        // e as comissões com base nos itens, valor total e prazo.
+        sale_date: saleDateToUse,
+        payment_dates,
       };
 
       console.log('Dados enviados ao backend no POST /api/sales/:', saleData);
@@ -279,14 +238,8 @@ function Sales() {
       );
 
       console.log('Resposta do backend após adicionar venda:', res.data);
-      fetchSales(); // Recarrega as vendas. O backend deve retornar a venda com payment_dates calculadas.
-      // Resetar o formulário para o estado inicial com um item
-      setNewSale({
-        sale_date: '',
-        buyer: '',
-        payment_term: '',
-        items: [{ id: Date.now(), product_line: '', value: '', discount_percent: '' }]
-      });
+      fetchSales(); // Recarrega todas as vendas para refletir a nova e as calculadas no backend
+      setNewSale({ product_line: '', value: '', discount_percent: '', payment_term: '', buyer: '', sale_date: '' });
       alert('Venda adicionada com sucesso!');
     } catch (error) {
       console.error('Erro ao adicionar venda:', error.response ? error.response.data : error.message);
@@ -406,9 +359,7 @@ function Sales() {
     <div className="sales-container">
       <h2>Gerenciamento de Vendas</h2>
 
-      {/* MODIFICAR ESTE FORMULÁRIO */}
       <form onSubmit={addSale} className="sales-form">
-        {/* Campos Gerais da Venda */}
         <div className="form-row">
           <div className="form-group">
             <label>Data da Venda:</label>
@@ -419,12 +370,43 @@ function Sales() {
             />
           </div>
           <div className="form-group">
-            <label>Comprador:</label>
-            <input
-              type="text"
-              value={newSale.buyer}
-              onChange={(e) => setNewSale({ ...newSale, buyer: e.target.value })}
+            <label>Linha de Produto:</label>
+            <select
+              value={newSale.product_line}
+              onChange={(e) => setNewSale({ ...newSale, product_line: e.target.value })}
               required
+            >
+              <option value="">Selecione</option>
+              <option value="aditivo">Aditivo</option>
+              <option value="aqua">Aqua</option>
+              <option value="aves">Aves</option>
+              <option value="pet">Pet</option>
+              <option value="ruminantes">Ruminantes</option>
+              <option value="suinos">Suínos</option>
+              <option value="revenda">Revenda</option>
+              <option value="racoes">Rações Vaccinar</option>
+            </select>
+          </div>
+        </div>
+        <div className="form-row">
+          <div className="form-group">
+            <label>Valor (R$):</label>
+            <input
+              type="number"
+              step="0.01"
+              value={newSale.value}
+              onChange={(e) => setNewSale({ ...newSale, value: e.target.value })}
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label>Desconto (%):</label>
+            <input
+              type="number"
+              step="0.01"
+              value={newSale.discount_percent}
+              onChange={(e) => setNewSale({ ...newSale, discount_percent: e.target.value })}
+              placeholder="0"
             />
           </div>
         </div>
@@ -448,69 +430,17 @@ function Sales() {
               <option value="120">120 dias</option>
             </select>
           </div>
-        </div>
-
-        {/* Seção de Itens da Venda */}
-        <h4 className="items-title">Itens da Venda</h4>
-        {newSale.items.map((item, index) => (
-          <div key={item.id} className="form-item-container">
-            <div className="form-item-header">
-              <h5>Item {index + 1}</h5>
-              {newSale.items.length > 1 && ( // Só mostra o botão de remover se houver mais de um item
-                <button type="button" onClick={() => removeItem(item.id)} className="remove-item-button">
-                  Remover Item
-                </button>
-              )}
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Linha de Produto:</label>
-                <select
-                  value={item.product_line}
-                  onChange={(e) => handleItemChange(item.id, 'product_line', e.target.value)}
-                  required
-                >
-                  <option value="">Selecione</option>
-                  <option value="aditivo">Aditivo</option>
-                  <option value="aqua">Aqua</option>
-                  <option value="aves">Aves</option>
-                  <option value="pet">Pet</option>
-                  <option value="ruminantes">Ruminantes</option>
-                  <option value="suinos">Suínos</option>
-                  <option value="revenda">Revenda</option>
-                  <option value="racoes">Rações Vaccinar</option>
-                </select>
-              </div>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Valor (R$):</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={item.value}
-                  onChange={(e) => handleItemChange(item.id, 'value', e.target.value)}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Desconto (%):</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={item.discount_percent}
-                  onChange={(e) => handleItemChange(item.id, 'discount_percent', e.target.value)}
-                  placeholder="0"
-                />
-              </div>
-            </div>
+          <div className="form-group">
+            <label>Comprador:</label>
+            <input
+              type="text"
+              value={newSale.buyer}
+              onChange={(e) => setNewSale({ ...newSale, buyer: e.target.value })}
+              required
+            />
           </div>
-        ))}
-        <button type="button" onClick={addNewItem} className="add-item-button">
-          Adicionar Novo Item
-        </button>
-
-        <button type="submit" className="add-button main-add-sale-button">Adicionar Venda</button>
+        </div>
+        <button type="submit" className="add-button">Adicionar Venda</button>
       </form>
 
       <div className="filter-commission-container">
@@ -557,28 +487,16 @@ function Sales() {
             {sales.map((sale) => (
               <tr key={sale.id}>
                 <td>{formatDate(sale.sale_date)}</td>
-                {/* Exibe dados do primeiro item, ou 'Múltiplos Itens' se houver mais de um */}
-                <td>
-                  {sale.items && sale.items.length > 0
-                    ? sale.items[0].product_line + (sale.items.length > 1 ? ' (+ outros)' : '')
-                    : 'N/A'}
-                </td>
-                <td>
-                  {/* O valor total da venda agora deve vir do backend */}
-                  {parseFloat(sale.total_value || sale.value || 0).toFixed(2)}
-                </td>
-                <td>
-                  {sale.items && sale.items.length > 0
-                    ? parseFloat(sale.items[0].discount_percent || 0).toFixed(2)
-                    : 'N/A'}
-                </td>
+                <td>{sale.product_line}</td>
+                <td>{parseFloat(sale.value).toFixed(2)}</td>
+                <td>{parseFloat(sale.discount_percent).toFixed(2)}</td>
                 <td>{sale.payment_term === 0 ? "À vista" : `${sale.payment_term} dias`}</td>
                 <td>{sale.buyer}</td>
                 <td>
                   <ul>
                     {Array.isArray(sale.payment_dates) && sale.payment_dates.map((pd, index) => (
                       <li key={index} className={pd.billed ? 'billed' : ''}>
-                        <span>
+                        <span> {/* Envolver o texto */}
                           {formatDate(pd.paymentDate)} - R$ {parseFloat(pd.value).toFixed(2)}
                           (Comissão: R$ {parseFloat(pd.commission).toFixed(2)})
                         </span>
